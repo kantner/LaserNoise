@@ -1,6 +1,6 @@
   fprintf(1,'\n') 
-  fprintf(1,'=== filtering of SDH signal ===\n')
-  % The reconstruction is for the FN-PSD only.
+  fprintf(1,'=== MCMC parameter inference ===\n')
+  
   
   %% convolution function   
    % convolution function h(t) and Fourier transform H(\omega) for phase signal       
@@ -8,6 +8,7 @@
      h(1)                = 1;  % instantaneous signal
      h(N_meas+1-l_meas)  = -1; % retarded signal
      
+   % transfer function
      H                   = transpose(fftshift(fft(h)));
      
      Hsq = abs(H).^2;
@@ -16,18 +17,14 @@
   %% hidden signal and noise
      S_xx   = (2*pi*f).^2 .* PSD(sol_nlin.phi - Omega_CW*t, dt, par.hann_window_switch);
      S_xixi = (2*pi*f_meas).^2 .* PSD(phase_noise, dt_meas, par.hann_window_switch);     
-  
-   % reference value from hidden data
-     idx = 1E7 <= f & f<=5E7;
-     S_inf_reference = mean(S_xx(idx));
-     
-    
-     
-  %% DSH measurement raw data
+       
+  %% DSH measurement raw data (frequency noise of interferometer signal)
      S_zz   = (2*pi*f_meas).^2 .* PSD(phase_signal, dt_meas, par.hann_window_switch); % phase_signal =  dphi(t) - dphi(t-tau)   + noise
           
      
-  %% maximum likelihood estimation of hidden parameters
+  %% maximum likelihood estimation of hidden parameters (signal and noise separately)
+     fprintf(1,'    MCMC inference on (hidden) noise .... ')
+     tic
    % use hidden time series to find optimal reference values
      
      gaussian = @(x,mu,sigma_sq) 1/sqrt(2*pi*sigma_sq) * exp( -0.5*(x-mu).*(x-mu)/sigma_sq);
@@ -51,7 +48,7 @@
            prior = @(x) prod(double(x>0));
 
          % number of MCMC steps  
-           N_mcmc = 1E5;
+           N_mcmc = 1E6;
 
          % allocate  
            x    = zeros(N_mcmc, 1);
@@ -105,7 +102,7 @@
                gauss_mean = trapz(gauss_x, gauss_x.*h.Values);
                gauss_var  = trapz(gauss_x, gauss_x.^2 .* h.Values) - gauss_mean.^2;
 
-               plot(gauss_x, gaussian(gauss_x, gauss_mean, gauss_var), 'b-','DisplayName','dist','LineWidth',2)
+               plot(gauss_x, gaussian(gauss_x, gauss_mean, gauss_var), 'b-','DisplayName','Gaussian fit','LineWidth',2)
 
                xlabel(varname)
                ylabel('pdf')
@@ -136,19 +133,30 @@
            ylabel('log likelihood')
            box on
        
+     
+           
+           
+           toc
+           
          % max likelihood estimate             
            [mu, Sigma] = compute_moments(logL, x);
          
            sigma_ML     = mu;
-           sigma_ML_std = sqrt(Sigma);
-           
-           fprintf(1,'Max likelihood estimate of detector noise\n')
-           fprintf(1,'  sigma (mean) = %.4g\n',sigma_ML)
-           fprintf(1,'  sigma (std)  = %.4g\n',sigma_ML_std)
-                  
+           sigma_ML_std = sqrt(Sigma);           
+           fprintf(1,'\n')
+           fprintf(1,'    Inference on (hidden) detector noise\n')
+           fprintf(1,'      sigma (mean) = %.4g\n',sigma_ML)
+           fprintf(1,'      sigma (std)  = %.4g\n',sigma_ML_std)
+           fprintf(1,'\n')       
+           fprintf(1,'\n')       
                 
+           
    %%%%%%%%%%%%%
    % (2) estimate C, nu, S_inf from hidden S_xx
+         fprintf(1,'    MCMC inference on (hidden) signal ... ')
+         tic
+         
+         
          idx = 1E3 <= f & f <= 5E7;
 
          % data
@@ -168,7 +176,7 @@
            prior = @(x) prod(double(x>0));
 
          % number of MCMC steps  
-           N_mcmc = 1E5;
+           N_mcmc = 1E6;
 
          % allocate  
            x    = zeros(N_mcmc, nvar);
@@ -223,7 +231,7 @@
                gauss_mean = trapz(gauss_x, gauss_x.*h.Values);
                gauss_var  = trapz(gauss_x, gauss_x.^2 .* h.Values) - gauss_mean.^2;
 
-               plot(gauss_x, gaussian(gauss_x, gauss_mean, gauss_var), 'b-','DisplayName','dist','LineWidth',2)
+               plot(gauss_x, gaussian(gauss_x, gauss_mean, gauss_var), 'b-','DisplayName','Gaussian fit','LineWidth',2)
 
                xlabel(varname{ii})
                ylabel('pdf')
@@ -260,6 +268,8 @@
            box on
            end
        
+           toc
+           
          % max likelihood estimate      
            [mu, Sigma] = compute_moments(logL, x);
          
@@ -271,21 +281,24 @@
            nu_ML_std    = sqrt(Sigma(2,2));
            S_inf_ML_std = sqrt(Sigma(3,3));
            
-           fprintf(1,'Max likelihood estimate of S_xx signal parameters\n')
-           fprintf(1,'  C (mean)     = %.4g\n',C_ML)
-           fprintf(1,'  C (std)      = %.4g\n',C_ML_std)
-           fprintf(1,'  nu (mean)    = %.4g\n',nu_ML)
-           fprintf(1,'  nu (std)     = %.4g\n',nu_ML_std)
-           fprintf(1,'  S_inf (mean) = %.4g\n',S_inf_ML)
-           fprintf(1,'  S_inf (std)  = %.4g\n',S_inf_ML_std)
-       
+           fprintf(1,'\n')
+           fprintf(1,'    Inference on (hidden) signal\n')
+           fprintf(1,'      C (mean)     = %.4g\n',C_ML)
+           fprintf(1,'      C (std)      = %.4g\n',C_ML_std)
+           fprintf(1,'      nu (mean)    = %.4g\n',nu_ML)
+           fprintf(1,'      nu (std)     = %.4g\n',nu_ML_std)
+           fprintf(1,'      S_inf (mean) = %.4g\n',S_inf_ML)
+           fprintf(1,'      S_inf (std)  = %.4g\n',S_inf_ML_std)
+           fprintf(1,'\n')       
+           fprintf(1,'\n')       
          
            
 %% apply to S_zz
  % estimate C, sigma, nu, S_inf on the fly
  
+   fprintf(1,'    MCMC inference on observed data ...... ')
  
- 
+   tic
  
    %%%%%%%%%%%%%
    
@@ -309,7 +322,7 @@
            prior = @(x) prod(double(x>0));
 
          % number of MCMC steps  
-           N_mcmc = 1E5;
+           N_mcmc = 1E6;
 
          % allocate  
            x    = zeros(N_mcmc, nvar);
@@ -359,7 +372,7 @@
            % plot  
              if mod(j,1E4) == 0 || j == N_mcmc
 
-               figure(702);clf; hold all;
+               figure(603);clf; hold all;
                
                for ii = 1 : nvar
                subplot(2,nvar,ii); hold all;
@@ -373,7 +386,7 @@
                gauss_mean = trapz(gauss_x, gauss_x.*h.Values);
                gauss_var  = trapz(gauss_x, gauss_x.^2 .* h.Values) - gauss_mean.^2;
 
-               plot(gauss_x, gaussian(gauss_x, gauss_mean, gauss_var), 'b-','DisplayName','dist','LineWidth',2)
+               plot(gauss_x, gaussian(gauss_x, gauss_mean, gauss_var), 'b-','DisplayName','Gaussian fit','LineWidth',2)
 
                xlabel(varname{ii})
                ylabel('pdf')
@@ -401,7 +414,7 @@
            end
              
            
-           figure(702); hold all;
+           figure(603); hold all;
            for ii = 1 : nvar            
            subplot(2,nvar,nvar + ii); hold all;
            plot(x(:,ii), logL, 'ko')
@@ -409,10 +422,40 @@
            ylabel('log likelihood')
            box on
            end
+           
+           toc
+           
        %%
          % max likelihood estimate      
-           [mu, Sigma] = compute_moments(logL, x);
-         
+           [mu, Sigma] = compute_moments(logL, x);     
+           
+           
+           fprintf(1,'\n')
+           fprintf(1,'    Inference on (hidden) signal\n')
+           fprintf(1,'      C (mean)     = %.4g\n',mu(1));
+           fprintf(1,'      C (std)      = %.4g\n',sqrt(Sigma(1,1)));
+           fprintf(1,'      nu (mean)    = %.4g\n',mu(2));
+           fprintf(1,'      nu (std)     = %.4g\n',sqrt(Sigma(2,2)));
+           fprintf(1,'      S_inf (mean) = %.4g\n',mu(3));
+           fprintf(1,'      S_inf (std)  = %.4g\n',sqrt(Sigma(3,3)));
+           fprintf(1,'      sigma (mean) = %.4g\n',mu(4));
+           fprintf(1,'      sigma (std)  = %.4g\n',sqrt(Sigma(4,4)));
+           fprintf(1,'\n')              
+           fprintf(1,'\n')       
+           
+        %% plot reconstructed FN-PSD
+                      
+         % ML results
+           S_xx_ML   = mu(1)./(f_data.^mu(2)) + mu(3);
+           S_xixi_ML = mu(4)^2 .* f_data.^2;
+           S_zz_ML   = H_data .* S_xx_ML + S_xixi_ML;
+           
+         % PSE reco  
+           SNR_ML    = S_xx_ML./S_xixi_ML;
+           G_PSE_sq  = SNR_ML./(H_data.*SNR_ML + 1);           
+           S_xx_PSE  = G_PSE_sq .* S_data;
+           S_xx_inv  = S_data./H_data;
+           
            
          % smoothing
            N_smooth = 1000;
@@ -423,48 +466,45 @@
            f_smooth    = f_smooth + f(i:N_smooth:end);    
            end
            S_xx_smooth = S_xx_smooth/N_smooth;
-           f_smooth    = f_smooth/N_smooth;
-           
-         % ML results
-           S_xx_ML   = mu(1)./(f_data.^mu(2)) + mu(3);
-           S_xixi_ML = mu(4)^2 .* f_data.^2;
-           S_zz_ML   = H_data.*S_xx_ML + S_xixi_ML;
-           
-         % PSE reco  
-           SNR_ML    = S_xx_ML./S_xixi_ML;
-           G_PSE_sq  = SNR_ML./(H_data.*SNR_ML + 1);           
-           S_xx_PSE  = G_PSE_sq .* S_data;
-           S_xx_inv  = S_data./H_data;
+           f_smooth    = f_smooth/N_smooth;           
            
            
-         % plot  
-           figure(703); clf; hold all;
-           %
+        figure(703); clf; hold all;   
+         subplot(1,3,1); hold all;
            plot(f(f>0), S_xx(f>0), 'r-','DisplayName','hidden S_{x,x}')
-           plot(f_data, S_xx_PSE, 'g-','LineWidth',1,'DisplayName','reco S_{x,x} (PSE)')
-           %plot(f_data, S_xx_inv, 'c-','LineWidth',1,'DisplayName','reco S_{x,x} (inv)')
-
-           plot(f_smooth, S_xx_smooth, 'c-','LineWidth',2,'DisplayName','hidden S_{x,x} (smoothed)')
-           
-           
-           
+           plot(f_data, S_xx_PSE,  'g-','LineWidth',1,'DisplayName','reco S_{x,x} (PSE)')
+           %plot(f_data, S_xx_inv,  'c-','LineWidth',1,'DisplayName','reco S_{x,x} (inv)')
+           plot(f_smooth, S_xx_smooth, 'b-','LineWidth',2,'DisplayName','hidden S_{x,x} (smoothed)')        
            plot(f_data, S_xx_ML, 'k-','LineWidth',3,'DisplayName','ML est S_{x,x}')
-           %}
-           %plot(f, movmean(S_xx,5000), 'g-')
-           
-           %{
-           plot(f_data, S_data, 'b-','DisplayName','observed S_{z,z}')
-           plot(f_data, S_zz_ML, 'c-','LineWidth',2,'DisplayName','ML est S_{z,z}')
-           %}
-           
-           %{
-           plot(f_meas, S_xixi, 'm-','DisplayName','hidden S_{\xi,\xi}')
-           plot(f_data, S_xixi_ML, 'k-','LineWidth',3,'DisplayName','ML est S_{\xi,\xi}')
-           %}
            set(gca,'XScale','log')
            set(gca,'YScale','log')
-           legend()
+           box on
+           xlabel('frequency (Hz)')
+           ylabel('S_{x,x}')
+           legend('location','southwest')
+           axis tight
            
+         subplot(1,3,2); hold all;
+           plot(f_data, S_data, 'b-','DisplayName','observed S_{z,z}')
+           plot(f_data, S_zz_ML, 'c-','LineWidth',2,'DisplayName','ML est S_{z,z}')
+           set(gca,'XScale','log')
+           set(gca,'YScale','log')
+           box on
+           xlabel('frequency (Hz)')
+           ylabel('S_{z,z}')
+           legend('location','southeast')
+           axis tight
+           
+         subplot(1,3,3); hold all;
+           plot(f_meas, S_xixi, 'm-','DisplayName','hidden S_{\xi,\xi}')
+           plot(f_data, S_xixi_ML, 'k-','LineWidth',3,'DisplayName','ML est S_{\xi,\xi}')
+           set(gca,'XScale','log')
+           set(gca,'YScale','log')
+           box on
+           xlabel('frequency (Hz)')
+           ylabel('S_{\xi,\xi}')
+           legend('location','northwest')
+           axis tight
            
 
            
