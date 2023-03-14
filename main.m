@@ -4,6 +4,8 @@ clc
  % add subdirectories to path
    addpath('distributions/')
    addpath('functions/')
+   addpath('simulation//')
+   addpath('scripts/')   
       
  % suppress warnings
    warning('off','MATLAB:Axes:NegativeDataInLogAxis')
@@ -31,4 +33,5 @@ clc
 %% Wiener filtering of detected signals   
    section_filtering
    
+
    
